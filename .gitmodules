@@ -1,0 +1,3 @@
+[submodule "newspherelib"]
+	path = include
+	url = http://git.vrm.alxndr.ninja/BURO/spherelib
