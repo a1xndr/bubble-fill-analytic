@@ -18,7 +18,6 @@
  */
 
 #include "sphere_math.hpp"
-
 #include <stdlib.h>
 #include <math.h>
 /* 
@@ -119,6 +118,14 @@ vec3 cross_product(vec3 i, vec3 j)
 	vec3 k(	i.y*j.z-i.z*j.y,
 			i.z*j.x-i.x*j.z,
 			i.x*j.y-i.y*j.x);
+    return k;
+}
+
+vec3 scalar_product(vec3 i, double j)
+{
+	vec3 k(	i.x*j,
+	        i.y*j,
+		i.z*j);
     return k;
 }
 

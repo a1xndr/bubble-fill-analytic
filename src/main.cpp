@@ -19,8 +19,11 @@
  */
 #include <stdlib.h>
 #include <iostream>
+#include <fstream>
+#include <sstream> 
 #include <string>
 #include <cmath>
+#include <Eigen/LU>
 #include "bubble.hpp"
 #include "sphere.hpp"
 #include "sphere_math.hpp"
@@ -30,6 +33,7 @@ const int bubbles_max = 1000000;
 const int x_max=10;
 const int y_max=10;
 const int z_max=10;
+double sphere_volume=0;
 
 sphere spheres[spheres_max];
 bubble bubbles[bubbles_max];
@@ -90,8 +94,8 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
     double min_radius;
     int index;
     bool bubble;
-
-    vec3 c1  = s1->pos +(s0->pos - s1->pos).normalize() * s1->radius;
+    vec3 t = (s0->pos - s1->pos).normalize();
+    vec3 c1 = s1->pos+scalar_product(t,s1->radius);
     vec3 vc1 = c1  - s1->pos; 
     for(int i; i <num_spheres+num_bubbles; i++)
     {
@@ -99,10 +103,10 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
         if(i>num_spheres) sc = bubbles[i-num_spheres];
         else sc = spheres[i];
 
-        vec3 v1s = s1->pos - sc->pos;
+        vec3 v1s = s1->pos - sc.pos;
         double r0c = ( pow(s1->radius, 2) - pow(sc.radius, 2) 
             + pow(v1s.magnitude(), 2) + 2*dot_product(vc1, v1s)      ) / 
-            (2*(s1->radius + sc->radius - dot_product(vc1, v1s)));
+            (2*(s1->radius + sc.radius - dot_product(vc1, v1s)));
         if(r0c < min_radius)
         {
             min_radius = r0c;
@@ -114,10 +118,67 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
             else index =i;
         }
     }
-    if(bubble)return bubbles[i];
-    else return spheres[i];
+    if(bubble)return bubbles[index];
+    else return spheres[index];
 }
 
+
+sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bubbles)
+{
+    double min_radius;
+    int index;
+    bool bubble;
+
+    vec3 vc1, b1, b2;
+    double r1 = s1->radius;
+    double r2 = s2->radius;
+//    double * rs = s0->radius;
+
+    vec3 x2 = s2->pos;
+    vec3 x1 = s1->pos;   
+    
+    vec3 c1 = s1->pos+((s0->pos - s1->pos).normalize()).scalar_multiply(s1->radius);
+    vc1 = c1  - s1->pos; 
+    
+    b1 = s0->pos    - x1; 
+    b2 = x2         - x1;
+
+    vec3 vc1xb2 = cross_product(vc1, b2);
+    Eigen::Matrix4f A;
+    Eigen::Vector4f b;
+    for(int i; i <num_spheres+num_bubbles; i++)
+    {
+        sphere sc;  //candidate for s2
+        if(i>num_spheres) sc = bubbles[i-num_spheres];
+        else sc = spheres[i];
+        double rs = sc.radius;
+        vec3 bs = sc.pos - x1;
+        A   << (b2-bs).x, (b2-bs).y, (b2-bs).z, (r2-rs)
+            , b2.x         , b2.y         , b2.z         , (r2-r1)
+            , bs.x         , bs.y         , bs.z         , (rs-r1)
+            , vc1xb2.x     , vc1xb2.y     , vc1xb2.z     , 0      ;
+
+        b   << (pow(b2.magnitude(), 2) - pow(bs.magnitude(), 2) 
+                    + pow(rs, 2) - pow(r2,2))/2.0
+            , (pow(b2.magnitude(), 2) + pow(r1, 2) - pow(r2,2))/2.0
+            , (pow(b1.magnitude(), 2) + pow(r1, 2) - pow(rs,2))/2.0
+            , 0 ;
+        Eigen::Vector4f soln = A.inverse() * b;
+
+        if(soln[3] < min_radius)
+        {
+            min_radius = soln[3];
+            if(i>num_spheres)
+            {
+                bubble = true;
+                index = i-num_spheres;
+            }
+            else index =i;
+        }
+    }
+    if(bubble)return bubbles[index];
+    else return spheres[index];
+}
 /* 
  * ===  FUNCTION  ======================================================================
  *         Name:  read_sphere_file
@@ -127,7 +188,7 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
 int read_sphere_coords(std::string path){
     std::ifstream file(path);
     int count = 0;
-    double pore_volume = X_MAX+Y_MAX+Z_MAX - sphere_volume;
+//    double pore_volume = x_max*y_max+z_max - sphere_volume;
     if(file.is_open())
     {
         std::string line;
