@@ -38,6 +38,30 @@ double sphere_volume=0;
 sphere spheres[spheres_max];
 bubble bubbles[bubbles_max];
 
+
+int check_intersect(double radius, vec3 pos, double i, double k, bool fastx, bool fasty, bool fastz){
+    for(int j=i-1; j >=0; j--)
+    {
+    	if(fastx && fabs(pos.x-spheres[j].pos.x) > radius + spheres[j].radius)continue;
+    	if(fasty && fabs(pos.y-spheres[j].pos.y) > radius + spheres[j].radius)continue;
+    	if(fastz && fabs(pos.z-spheres[j].pos.z) > radius + spheres[j].radius)continue;
+    	//Square of distance between two centers comparison against square of radius.
+    	if( distance(pos,spheres[j].pos)
+	    < spheres[j].radius + radius - SMIDGE)return j;
+    }
+    for(int j=k-1; j >=0; j--)
+    {
+    	if(fastx && fabs(pos.x-bubbles[j].pos.x) > radius + bubbles[j].radius)continue;
+    	if(fasty && fabs(pos.y-bubbles[j].pos.y) > radius + bubbles[j].radius)continue;
+    	if(fastz && fabs(pos.z-bubbles[j].pos.z) > radius + bubbles[j].radius)continue;
+    	//Square of distance between two centers comparison against square of radius.
+    	if( distance(pos,bubbles[j].pos)
+	    < bubbles[j].radius + radius - SMIDGE)return j;
+    }
+    return -1;
+}
+
+
 /* 
  * ===  FUNCTION  ======================================================================
  *         Name:  stage1(bubble *s, int i)
@@ -51,7 +75,7 @@ sphere stage1(bubble *b, int num_spheres, int num_bubbles)
      *  First we need to find the sphere that we will be "growing" up to
      *-----------------------------------------------------------------------------*/
     double min_distance = x_max;
-    int index;
+    int index = -1;
     bool bubble = false;
     for(int i=0; i<num_spheres; i++)
     {
@@ -85,6 +109,7 @@ sphere stage1(bubble *b, int num_spheres, int num_bubbles)
         v1 = spheres[index].pos - b->pos; 
         b->radius = v1.magnitude()- spheres[index].pos.magnitude(); 
     }
+    if(index==-1)return bubbles[0];
     if(bubble)  return bubbles[index];
     else        return spheres[index];
 }
@@ -92,8 +117,8 @@ sphere stage1(bubble *b, int num_spheres, int num_bubbles)
 sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
 {
     double min_radius;
-    int index;
-    bool bubble;
+    int index = -1;
+    bool bubble = false;
     vec3 t = (s0->pos - s1->pos).normalize();
     vec3 c1 = s1->pos+scalar_product(t,s1->radius);
     vec3 vc1 = c1  - s1->pos; 
@@ -118,6 +143,7 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
             else index =i;
         }
     }
+    if(index==-1)return bubbles[0];
     if(bubble)return bubbles[index];
     else return spheres[index];
 }
@@ -126,8 +152,8 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
 sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bubbles)
 {
     double min_radius;
-    int index;
-    bool bubble;
+    int index = -1;
+    bool bubble = false;
 
     vec3 vc1, b1, b2;
     double r1 = s1->radius;
@@ -146,7 +172,7 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
     vec3 vc1xb2 = cross_product(vc1, b2);
     Eigen::Matrix4f A;
     Eigen::Vector4f b;
-    for(int i; i <num_spheres+num_bubbles; i++)
+    for(int i=0; i <num_spheres+num_bubbles; i++)
     {
         sphere sc;  //candidate for s2
         if(i>num_spheres) sc = bubbles[i-num_spheres];
@@ -176,6 +202,7 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
             else index =i;
         }
     }
+    if(index==-1)return bubbles[0];
     if(bubble)return bubbles[index];
     else return spheres[index];
 }
@@ -227,4 +254,29 @@ int main(int argc, char * argv[])
     }
     std::string sphere_file_path = argv[1];
     std::string bubble_file_path = argv[2];
+    int num_spheres = read_sphere_coords(sphere_file_path);
+    for(int i=0; i<1000000; i++)
+    {
+        bubble b;
+        double r, x, y, z;
+        while(true)
+        {
+            double r= 0.001;
+            double x = rand_range(0.001,9.999);
+            double y = rand_range(0.001,9.999);
+            double z = rand_range(0.001,9.999);
+            if(check_intersect(r, (vec3){x, y, z}, num_spheres, i, true, true, true)
+                    ==-1) break;
+        }
+        b.radius = r;
+        b.pos.x = x;
+        b.pos.y = y;
+        b.pos.z = z;
+        sphere c1 = stage1(&b, num_spheres, i);
+        sphere c2 = stage2(&b, &c1, num_spheres, i);
+        sphere c3 = stage3(&b, &c1, &c2, num_spheres, i);
+        bubbles[i]=b;
+        std::cout<< b.radius << " " << 
+            b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
+    }
 }

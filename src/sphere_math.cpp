@@ -121,12 +121,20 @@ vec3 cross_product(vec3 i, vec3 j)
     return k;
 }
 
-vec3 scalar_product(vec3 i, double j)
+vec3 scalar_product(vec3 &i, double j)
 {
 	vec3 k(	i.x*j,
 	        i.y*j,
 		i.z*j);
     return k;
+}
+
+vec3 normalize(vec3 &i)
+{
+	vec3 norm(  i.x/i.magnitude(),
+		    i.y/i.magnitude(),
+		    i.z/i.magnitude());
+	return norm;
 }
 
 /*
@@ -193,14 +201,14 @@ void vec3::equals(vec3 vec){
 	return ;
 }
 
-vec3 vec3::operator+(vec3& b){
+vec3 vec3::operator+(vec3 b){
     vec3 sum(	this->x+b.x,
 		this->y+b.y,
 		this->z+b.z);
     return sum;
 }
 
-vec3 vec3::operator-(vec3& b){
+vec3 vec3::operator-(vec3 b){
     vec3 diff(	this->x-b.x,
 		this->y-b.y,
 		this->z-b.z);
