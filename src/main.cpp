@@ -104,10 +104,10 @@ sphere stage1(bubble *b, int num_spheres, int num_bubbles)
     if(bubble)
     {
         v1 = bubbles[index].pos - b->pos; 
-        b->radius = v1.magnitude()- bubbles[index].pos.magnitude();
+        b->radius = v1.magnitude()-bubbles[index].radius;
     } else {
         v1 = spheres[index].pos - b->pos; 
-        b->radius = v1.magnitude()- spheres[index].pos.magnitude(); 
+        b->radius = v1.magnitude()-spheres[index].radius; 
     }
     if(index==-1)return bubbles[0];
     if(bubble)  return bubbles[index];
@@ -116,7 +116,7 @@ sphere stage1(bubble *b, int num_spheres, int num_bubbles)
 
 sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
 {
-    double min_radius;
+    double min_radius=10;
     int index = -1;
     bool bubble = false;
     vec3 t = (s0->pos - s1->pos).normalize();
@@ -128,11 +128,11 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
         if(i>num_spheres) sc = bubbles[i-num_spheres];
         else sc = spheres[i];
 
-        vec3 v1s = s1->pos - sc.pos;
+        vec3 v1s = sc.pos-s1->pos;
         double r0c = ( pow(s1->radius, 2) - pow(sc.radius, 2) 
-            + pow(v1s.magnitude(), 2) + 2*dot_product(vc1, v1s)      ) / 
-            (2*(s1->radius + sc.radius - dot_product(vc1, v1s)));
-        if(r0c < min_radius)
+            + pow(v1s.magnitude(), 2) + 2*dot_product(vc1, v1s)) / 
+            (2*(s1->radius + sc.radius - dot_product(vc1, v1s)/sc.radius));
+        if(r0c < min_radius && r0c>s0->radius)
         {
             min_radius = r0c;
             if(i>num_spheres)
@@ -144,6 +144,11 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
         }
     }
     if(index==-1)return bubbles[0];
+    sphere sc;
+    if(bubble)sc = bubbles[index];
+    else sc=spheres[index];
+    s0->radius = min_radius;
+    s0->pos = s1->pos + vc1.scalar_multiply((min_radius+s1->radius)/s1->radius);
     if(bubble)return bubbles[index];
     else return spheres[index];
 }
@@ -156,6 +161,7 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
     bool bubble = false;
 
     vec3 vc1, b1, b2;
+    vec3 beta;
     double r1 = s1->radius;
     double r2 = s2->radius;
 //    double * rs = s0->radius;
@@ -190,10 +196,11 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
             , (pow(b1.magnitude(), 2) + pow(r1, 2) - pow(rs,2))/2.0
             , 0 ;
         Eigen::Vector4f soln = A.inverse() * b;
-
-        if(soln[3] < min_radius)
+	
+        if(soln[3] < min_radius && soln[3]>s0->radius)
         {
             min_radius = soln[3];
+	    beta={soln[0], soln[1], soln[2]};
             if(i>num_spheres)
             {
                 bubble = true;
@@ -203,6 +210,77 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
         }
     }
     if(index==-1)return bubbles[0];
+    sphere sc;
+    if(bubble)sc = bubbles[index];
+    else sc=spheres[index];
+    s0->radius = min_radius;
+    s0->pos = s1->pos + beta;
+    if(bubble)return bubbles[index];
+    else return spheres[index];
+}
+
+
+sphere stage4(bubble * s0, sphere * s1, sphere * s2, sphere * s3, int num_spheres, int num_bubbles)
+{
+    double min_radius;
+    int index = -1;
+    bool bubble = false;
+
+    vec3 vc1, b1, b2;
+    vec3 beta;
+    double r1 = s1->radius;
+    double r2 = s2->radius;
+//    double * rs = s0->radius;
+
+    vec3 x2 = s2->pos;
+    vec3 x1 = s1->pos;   
+    
+    vec3 c1 = s1->pos+((s0->pos - s1->pos).normalize()).scalar_multiply(s1->radius);
+    vc1 = c1  - s1->pos; 
+    
+    b1 = s0->pos    - x1; 
+    b2 = x2         - x1;
+
+    vec3 vc1xb2 = cross_product(vc1, b2);
+    Eigen::Matrix4f A;
+    Eigen::Vector4f b;
+    for(int i=0; i <num_spheres+num_bubbles; i++)
+    {
+        sphere sc;  //candidate for s2
+        if(i>num_spheres) sc = bubbles[i-num_spheres];
+        else sc = spheres[i];
+        double rs = sc.radius;
+        vec3 bs = sc.pos - x1;
+        A   << (b2-bs).x, (b2-bs).y, (b2-bs).z, (r2-rs)
+            , b2.x         , b2.y         , b2.z         , (r2-r1)
+            , bs.x         , bs.y         , bs.z         , (rs-r1)
+            , vc1xb2.x     , vc1xb2.y     , vc1xb2.z     , 0      ;
+
+        b   << (pow(b2.magnitude(), 2) - pow(bs.magnitude(), 2) 
+                    + pow(rs, 2) - pow(r2,2))/2.0
+            , (pow(b2.magnitude(), 2) + pow(r1, 2) - pow(r2,2))/2.0
+            , (pow(b1.magnitude(), 2) + pow(r1, 2) - pow(rs,2))/2.0
+            , 0 ;
+        Eigen::Vector4f soln = A.inverse() * b;
+	
+        if(soln[3] < min_radius && soln[3]>s0->radius)
+        {
+            min_radius = soln[3];
+	    beta={soln[0], soln[1], soln[2]};
+            if(i>num_spheres)
+            {
+                bubble = true;
+                index = i-num_spheres;
+            }
+            else index =i;
+        }
+    }
+    if(index==-1)return bubbles[0];
+    sphere sc;
+    if(bubble)sc = bubbles[index];
+    else sc=spheres[index];
+    s0->radius = min_radius;
+    s0->pos = s1->pos + beta;
     if(bubble)return bubbles[index];
     else return spheres[index];
 }
@@ -250,7 +328,8 @@ int main(int argc, char * argv[])
         std::cout << 
             "Usage: ./bubble-fill [input-sphere-file] [output-bubble-file]" <<
             std::endl;
-        return -1;
+        argv[1]="spheres";
+	argv[2]="bubbles";
     }
     std::string sphere_file_path = argv[1];
     std::string bubble_file_path = argv[2];
@@ -261,10 +340,10 @@ int main(int argc, char * argv[])
         double r, x, y, z;
         while(true)
         {
-            double r= 0.001;
-            double x = rand_range(0.001,9.999);
-            double y = rand_range(0.001,9.999);
-            double z = rand_range(0.001,9.999);
+            r = 0.001;
+            x = rand_range(0.001,9.999);
+            y = rand_range(0.001,9.999);
+            z = rand_range(0.001,9.999);
             if(check_intersect(r, (vec3){x, y, z}, num_spheres, i, true, true, true)
                     ==-1) break;
         }
@@ -273,10 +352,12 @@ int main(int argc, char * argv[])
         b.pos.y = y;
         b.pos.z = z;
         sphere c1 = stage1(&b, num_spheres, i);
+//        std::cout<< "Was: "<< b.radius << " " << 
+//            b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
         sphere c2 = stage2(&b, &c1, num_spheres, i);
         sphere c3 = stage3(&b, &c1, &c2, num_spheres, i);
-        bubbles[i]=b;
-        std::cout<< b.radius << " " << 
+	std::cout<< b.radius << " " << 
             b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
+        bubbles[i]=b;
     }
 }
