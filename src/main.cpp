@@ -66,6 +66,7 @@ int check_intersect(double radius, vec3 pos, double i, double k, bool fastx, boo
  * ===  FUNCTION  ======================================================================
  *         Name:  stage1(bubble *s, int i)
  *  Description:  Grows a sphere not in contact with any other bubble, until
+ *  
  *  a collision
  * =====================================================================================
  */
@@ -77,24 +78,21 @@ sphere stage1(bubble *b, int num_spheres, int num_bubbles)
     double min_distance = x_max;
     int index = -1;
     bool bubble = false;
-    for(int i=0; i<num_spheres; i++)
+    for(int i=0; i<num_spheres+num_bubbles; i++)
     {
-        double d = distance(b->pos, spheres[i].pos) 
-            -b->radius - spheres[i].radius; 
+        sphere sc;  //candidate for s2
+        if(i>num_spheres) sc = bubbles[i-num_spheres];
+        else sc = spheres[i];
+        double d = distance(b->pos, sc.pos) 
+            -b->radius - sc.radius; 
         if( d < min_distance )
         {
             index = i;
-            min_distance = d;
-        }
-    }
-    for(int i=0; i<num_bubbles; i++)
-    {
-        double d = distance(b->pos, bubbles[i].pos) 
-            -b->radius - bubbles[i].radius; 
-        if( d < min_distance )
-        {
-            bubble=true;
-            index = i;
+            if(i>num_spheres)
+            {
+                bubble = true;
+                index = i-num_spheres;
+            }
             min_distance = d;
         }
     }
@@ -110,8 +108,18 @@ sphere stage1(bubble *b, int num_spheres, int num_bubbles)
         b->radius = v1.magnitude()-spheres[index].radius; 
     }
     if(index==-1)return bubbles[0];
-    if(bubble)  return bubbles[index];
-    else        return spheres[index];
+    if(bubble)
+    {
+        std::cout << "S1::COLL::Bubble " << index << std::endl;
+        b->neighboors.push_back(num_spheres+index);
+        return bubbles[index];
+    } 
+    else 
+    {
+        std::cout << "S1::COLL::Sphere " << index << std::endl;
+        b->neighboors.push_back(index);
+        return spheres[index];
+    }
 }
 
 sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
@@ -122,8 +130,18 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
     vec3 t = (s0->pos - s1->pos).normalize();
     vec3 c1 = s1->pos+scalar_product(t,s1->radius);
     vec3 vc1 = c1  - s1->pos; 
-    for(int i; i <num_spheres+num_bubbles; i++)
+    for(int i=0; i <num_spheres+num_bubbles; i++)
     {
+        bool skip=false;
+        for(int j: s0->neighboors){
+            if(j==i)
+            {
+                skip=true;
+                break;
+            }
+        }
+        if(skip) continue;
+
         sphere sc;  //candidate for s2
         if(i>num_spheres) sc = bubbles[i-num_spheres];
         else sc = spheres[i];
@@ -148,9 +166,19 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
     if(bubble)sc = bubbles[index];
     else sc=spheres[index];
     s0->radius = min_radius;
-    s0->pos = s1->pos + vc1.scalar_multiply((min_radius+s1->radius)/s1->radius);
-    if(bubble)return bubbles[index];
-    else return spheres[index];
+    s0->pos.equals(s1->pos + vc1.scalar_multiply((min_radius+s1->radius)/s1->radius));
+    if(bubble)
+    {
+        std::cout << "S2::COLL::Bubble " << index << std::endl;
+        s0->neighboors.push_back(num_spheres+index);
+        return bubbles[index];
+    } 
+    else 
+    {
+        std::cout << "S2::COLL::Sphere " << index << std::endl;
+        s0->neighboors.push_back(index);
+        return spheres[index];
+    }
 }
 
 
@@ -180,6 +208,15 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
     Eigen::Vector4f b;
     for(int i=0; i <num_spheres+num_bubbles; i++)
     {
+        bool skip=false;
+        for(int j: s0->neighboors){
+            if(j==i)
+            {
+                skip=true;
+                break;
+            }
+        }
+        if(skip) continue;
         sphere sc;  //candidate for s2
         if(i>num_spheres) sc = bubbles[i-num_spheres];
         else sc = spheres[i];
@@ -214,9 +251,17 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
     if(bubble)sc = bubbles[index];
     else sc=spheres[index];
     s0->radius = min_radius;
-    s0->pos = s1->pos + beta;
-    if(bubble)return bubbles[index];
-    else return spheres[index];
+    s0->pos.equals(s1->pos + beta);
+    if(bubble)
+    {
+        s0->neighboors.push_back(num_spheres+index);
+        return bubbles[index];
+    } 
+    else 
+    {
+        s0->neighboors.push_back(index);
+        return spheres[index];
+    }
 }
 
 
@@ -246,6 +291,15 @@ sphere stage4(bubble * s0, sphere * s1, sphere * s2, sphere * s3, int num_sphere
     Eigen::Vector4f b;
     for(int i=0; i <num_spheres+num_bubbles; i++)
     {
+        bool skip=false;
+        for(int j: s0->neighboors){
+            if(j==i)
+            {
+                skip=true;
+                break;
+            }
+        }
+        if(skip) continue;
         sphere sc;  //candidate for s2
         if(i>num_spheres) sc = bubbles[i-num_spheres];
         else sc = spheres[i];
@@ -281,8 +335,16 @@ sphere stage4(bubble * s0, sphere * s1, sphere * s2, sphere * s3, int num_sphere
     else sc=spheres[index];
     s0->radius = min_radius;
     s0->pos = s1->pos + beta;
-    if(bubble)return bubbles[index];
-    else return spheres[index];
+    if(bubble)
+    {
+        s0->neighboors.push_back(num_spheres+index);
+        return bubbles[index];
+    } 
+    else 
+    {
+        s0->neighboors.push_back(index);
+        return spheres[index];
+    }
 }
 /* 
  * ===  FUNCTION  ======================================================================
@@ -313,6 +375,26 @@ int read_sphere_coords(std::string path){
         }
     }
     return count;
+}
+
+int check_errors(bubble * b, int num_spheres, int num_bubbles)
+{
+    
+    int err= check_intersect(b->radius, b->pos, num_spheres, num_bubbles, true, true, true);
+    if(err!=-1)
+    {
+        if(err>num_spheres)
+        {
+            err-=num_spheres;
+            std::cout << "Error: This bubble intersected with bubble " << err << std::endl;
+        }
+        else
+        {
+            std::cout << "Error: This bubble intersected with sphere " << err << std::endl;
+        }
+        return err;
+    }
+    return -1;
 }
 
 /* 
@@ -351,13 +433,36 @@ int main(int argc, char * argv[])
         b.pos.x = x;
         b.pos.y = y;
         b.pos.z = z;
+        //std::cout<< "Pre: "<< b.radius << " " << 
+        //    b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
         sphere c1 = stage1(&b, num_spheres, i);
-//        std::cout<< "Was: "<< b.radius << " " << 
-//            b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
+        if(check_errors(&b, num_spheres, i)!=-1)
+        {
+            std::cout<<"After stage 1" << std::endl;
+            break;
+        }
+        //std::cout<< "Stage1: "<< b.radius << " " << 
+        //    b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
         sphere c2 = stage2(&b, &c1, num_spheres, i);
+        if(check_errors(&b, num_spheres, i)!=-1)
+        {
+            std::cout<<"After stage 2" << std::endl;
+            break;
+        }
+        //std::cout<< "Stage2: "<< b.radius << " " << 
+        //    b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
+
         sphere c3 = stage3(&b, &c1, &c2, num_spheres, i);
+        if(check_errors(&b, num_spheres, i)!=-1)
+        {
+            std::cout<<"After stage 3" << std::endl;
+            break;
+        }
 	std::cout<< b.radius << " " << 
             b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
+        //std::cout<< "Stage3: "<< b.radius << " " << 
+        //    b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
+
         bubbles[i]=b;
     }
 }
