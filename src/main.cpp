@@ -78,7 +78,7 @@ sphere stage1(bubble *b, int num_spheres, int num_bubbles)
     double min_distance = x_max;
     int index = -1;
     bool bubble = false;
-    for(int i=0; i<num_spheres+num_bubbles; i++)
+    for(int i=0; i<num_spheres+num_bubbles+2; i++)
     {
         sphere sc;  //candidate for s2
         if(i>num_spheres) sc = bubbles[i-num_spheres];
@@ -107,6 +107,10 @@ sphere stage1(bubble *b, int num_spheres, int num_bubbles)
         v1 = spheres[index].pos - b->pos; 
         b->radius = v1.magnitude()-spheres[index].radius; 
     }
+    if(num_bubbles==5)
+    {
+      
+    }
     if(index==-1)return bubbles[0];
     if(bubble)
     {
@@ -130,8 +134,10 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
     vec3 t = (s0->pos - s1->pos).normalize();
     vec3 c1 = s1->pos+scalar_product(t,s1->radius);
     vec3 vc1 = c1  - s1->pos; 
-    for(int i=0; i <num_spheres+num_bubbles; i++)
+
+    for(int i=0; i <=num_spheres+num_bubbles; i++)
     {
+
         bool skip=false;
         for(int j: s0->neighboors){
             if(j==i)
@@ -143,17 +149,35 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
         if(skip) continue;
 
         sphere sc;  //candidate for s2
-        if(i>num_spheres) sc = bubbles[i-num_spheres];
+        //!!!!!!!!!
+        if(i>=num_spheres) sc = bubbles[i-num_spheres];
         else sc = spheres[i];
-
-        vec3 v1s = sc.pos-s1->pos;
+        vec3 v1s = s1->pos - sc.pos;
         double r0c = ( pow(s1->radius, 2) - pow(sc.radius, 2) 
             + pow(v1s.magnitude(), 2) + 2*dot_product(vc1, v1s)) / 
-            (2*(s1->radius + sc.radius - dot_product(vc1, v1s)/sc.radius));
+            (2*(s1->radius - sc.radius - dot_product(vc1, v1s)/sc.radius));
+	if(i==num_spheres+2 || i== 89)
+	{
+	   std::cout << "r0c is " << r0c << std::endl;
+	}
+	if(i==101)
+	{
+	  int a=0;
+	  a=1;
+	}
         if(r0c < min_radius && r0c>s0->radius)
+
         {
+	    std::cout << "min r0c is " << r0c;
+	    if(i>=num_spheres)
+	    {
+	      std::cout << " for bubble " << i-num_spheres << std::endl;
+	      std::cout << " r is " << bubbles[i-num_spheres].radius << std::endl;
+	    }
+	    else std::cout << " for sphere " << i << std::endl;
+	    
             min_radius = r0c;
-            if(i>num_spheres)
+            if(i>=num_spheres)
             {
                 bubble = true;
                 index = i-num_spheres;
@@ -161,6 +185,7 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
             else index =i;
         }
     }
+
     if(index==-1)return bubbles[0];
     sphere sc;
     if(bubble)sc = bubbles[index];
@@ -174,6 +199,7 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
         return bubbles[index];
     } 
     else 
+
     {
         std::cout << "S2::COLL::Sphere " << index << std::endl;
         s0->neighboors.push_back(index);
@@ -263,7 +289,6 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
         return spheres[index];
     }
 }
-
 
 sphere stage4(bubble * s0, sphere * s1, sphere * s2, sphere * s3, int num_spheres, int num_bubbles)
 {
@@ -416,7 +441,14 @@ int main(int argc, char * argv[])
     std::string sphere_file_path = argv[1];
     std::string bubble_file_path = argv[2];
     int num_spheres = read_sphere_coords(sphere_file_path);
-    for(int i=0; i<1000000; i++)
+    //Initialize the null sphere
+    bubbles[0].id=0;
+    bubbles[0].radius=0;
+    bubbles[0].pos.x=-100;
+    bubbles[0].pos.y=-100;
+    bubbles[0].pos.z=-100;
+    
+    for(int i=1; i<1000000; i++)
     {
         bubble b;
         double r, x, y, z;
@@ -429,6 +461,7 @@ int main(int argc, char * argv[])
             if(check_intersect(r, (vec3){x, y, z}, num_spheres, i, true, true, true)
                     ==-1) break;
         }
+        b.id=i;
         b.radius = r;
         b.pos.x = x;
         b.pos.y = y;
@@ -441,16 +474,18 @@ int main(int argc, char * argv[])
             std::cout<<"After stage 1" << std::endl;
             break;
         }
-        //std::cout<< "Stage1: "<< b.radius << " " << 
-        //    b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
+        std::cout<< "Stage1: "<< b.radius << " " << 
+            b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
         sphere c2 = stage2(&b, &c1, num_spheres, i);
+	std::cout<< b.radius << " " << 
+            b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
         if(check_errors(&b, num_spheres, i)!=-1)
         {
             std::cout<<"After stage 2" << std::endl;
             break;
         }
-        //std::cout<< "Stage2: "<< b.radius << " " << 
-        //    b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
+        std::cout<< "Stage2: "<< b.radius << " " << 
+            b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
 
         sphere c3 = stage3(&b, &c1, &c2, num_spheres, i);
         if(check_errors(&b, num_spheres, i)!=-1)
@@ -458,10 +493,9 @@ int main(int argc, char * argv[])
             std::cout<<"After stage 3" << std::endl;
             break;
         }
-	std::cout<< b.radius << " " << 
+
+        std::cout<< "Stage3: "<< b.radius << " " << 
             b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
-        //std::cout<< "Stage3: "<< b.radius << " " << 
-        //    b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
 
         bubbles[i]=b;
     }
