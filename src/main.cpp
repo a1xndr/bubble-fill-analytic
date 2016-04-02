@@ -450,22 +450,22 @@ int sphere_cage_gen(int num_spheres, double r)
     for(int j =0; j<=y_max/(2*r) + 1; j ++)
     {
         num_spheres++;
-        spheres[num_spheres]=(sphere){r, (vec3){i*r, j*r, -r}};
+        spheres[num_spheres]=(sphere){r, (vec3){i*2*r, j*2*r, -r}};
         
         num_spheres++;
-        spheres[num_spheres]=(sphere){r, (vec3){i*r, i*r, z_max+r}};
+        spheres[num_spheres]=(sphere){r, (vec3){i*2*r, i*2*r, z_max+r}};
         
         num_spheres++;
-        spheres[num_spheres]=(sphere){r, (vec3){i*r, -r, j*r}};
+        spheres[num_spheres]=(sphere){r, (vec3){i*2*r, -r, j*2*r}};
         
         num_spheres++;
-        spheres[num_spheres]=(sphere){r, (vec3){i*r, y_max+r, j*r}};
+        spheres[num_spheres]=(sphere){r, (vec3){i*2*r, y_max+r, j*2*r}};
         
         num_spheres++;
-        spheres[num_spheres]=(sphere){r, (vec3){-r, i*r, j*r}};
+        spheres[num_spheres]=(sphere){r, (vec3){-r, i*2*r, j*2*r}};
         
         num_spheres++;
-        spheres[num_spheres]=(sphere){r, (vec3){x_max+r, i*r, j*r}};
+        spheres[num_spheres]=(sphere){r, (vec3){x_max+r, i*2*r, j*2*r}};
     }
     }
     return num_spheres;
@@ -492,9 +492,8 @@ int main(int argc, char * argv[])
     int num_spheres = read_sphere_coords(sphere_file_path);
     num_spheres = sphere_cage_gen(num_spheres, 0.25);
     //Initialize the null sphere
-    
     for(int i=1; i<1000000; i++)
-    {
+    { 
         bubble b;
         double r, x, y, z;
         while(true)
