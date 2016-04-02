@@ -451,7 +451,6 @@ int sphere_cage_gen(int num_spheres, double r)
     {
         num_spheres++;
         spheres[num_spheres]=(sphere){r, (vec3){i*2*r, j*2*r, -r}};
-        
         num_spheres++;
         spheres[num_spheres]=(sphere){r, (vec3){i*2*r, i*2*r, z_max+r}};
         
@@ -479,6 +478,7 @@ int sphere_cage_gen(int num_spheres, double r)
  */
 int main(int argc, char * argv[])
 {
+    std::cout << std::fixed;
     if(argc!=3)
     {
         //std::cout << 
