@@ -517,9 +517,16 @@ int main(int argc, char * argv[])
 
 	std::cout<< b.radius << " " << 
             b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
-       sphere c3 = stage3(&b, &c1, &c2, num_spheres, i);
-	std::cout<< b.radius << " " << 
-            b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
+        for(int j: b.neighboors){
+            if(j-num_spheres>0)
+            {
+                std::cout<< j << " " ;
+            }
+        }
+        std::cout<< std::endl ;
+       ///sphere c3 = stage3(&b, &c1, &c2, num_spheres, i);
+	//std::cout<< b.radius << " " << 
+        //    b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
         bubbles[i]=b;
     }
 }
