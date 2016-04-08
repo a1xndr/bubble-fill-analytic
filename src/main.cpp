@@ -389,6 +389,7 @@ sphere stage4(bubble * s0, sphere * s1, sphere * s2, sphere * s3, int num_sphere
  *         Name:  read_sphere_file
  *  Description:  Reads sphere coordinates from file
  * =====================================================================================
+ * 
  */
 int read_sphere_coords(std::string path){
     std::ifstream file(path);
@@ -518,9 +519,9 @@ int main(int argc, char * argv[])
 	std::cout<< b.radius << " " << 
             b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
         for(int j: b.neighboors){
-            if(j-num_spheres>0)
+            if(j-num_spheres-1>0)
             {
-                std::cout<< j << " " ;
+                std::cout<< j-num_spheres-1 << " " ;
             }
         }
         std::cout<< std::endl ;
