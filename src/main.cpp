@@ -136,14 +136,19 @@ sphere stage1(bubble *s0, int num_spheres, int num_bubbles)
     {
       
     }
-    if(index==-1)return bubbles[0];
+    if(index==-1){
+        DEBUG(2,"No contact"<<std::endl);
+        return bubbles[0];
+    }
     if(bubble)
     {
+        DEBUG(2,"Contact with bubble: " << index <<std::endl);
         s0->neighboors.push_back(num_spheres+index);
         return bubbles[index];
     } 
     else 
     {
+        DEBUG(2,"Contact with sphere: " << index <<std::endl);
         s0->neighboors.push_back(index);
         return spheres[index];
     }
@@ -158,7 +163,7 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
     vec3 c1 = s1->pos+scalar_product(t,s1->radius);
     vec3 v1c = c1  - s1->pos; 
 
-    for(int i=0; i <=num_spheres+num_bubbles; i++)
+    for(int i=0; i <num_spheres+num_bubbles; i++)
     {
 
         bool skip=false;
@@ -193,7 +198,10 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
         }
     }
 
-    if(index==-1)return bubbles[0];
+    if(index==-1){
+        DEBUG(2,"No contact" <<std::endl);
+        return bubbles[0];
+    }
     vec3 min_vec = (vec3){-s0->pos.x, 0, 0};
     min_vec = s0->pos.y > min_vec.magnitude() ? (vec3){0, -s0->pos.y, 0}: min_vec; 
     min_vec = s0->pos.z > min_vec.magnitude() ? (vec3){0, 0, -s0->pos.z}: min_vec; 
@@ -216,12 +224,13 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
     s0->pos.equals(s1->pos + v1c.scalar_multiply((min_radius+s1->radius)/s1->radius));
     if(bubble)
     {
+        DEBUG(2,"Contact with bubble: " << index <<std::endl);
         s0->neighboors.push_back(num_spheres+index);
         return bubbles[index];
     } 
     else 
-
     {
+        DEBUG(2,"Contact with sphere: " << index <<std::endl);
         s0->neighboors.push_back(index);
         return spheres[index];
     }
@@ -230,16 +239,22 @@ sphere stage2(bubble * s0, sphere * s1, int num_spheres, int num_bubbles)
 
 sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bubbles)
 {
-    double min_radius=10;
-    double min_dist=10;
     int index = -1;
-    bool bubble = false;
-
-    vec3 vc1, b1, b2;
-    vec3 beta;
+    
+    double radius_min=x_max;
     double r1 = s1->radius;
     double r2 = s2->radius;
-//    double * rs = s0->radius;
+    
+    bool bubble = false;
+    
+    vec3 vc1, b1, b2;
+
+    Eigen::Vector3f beta_min, beta;
+    Eigen::Vector3f b0e, b2e;
+    
+    Eigen::Matrix3f B;
+    Eigen::Vector3f r;
+    Eigen::Vector3f s;
 
     vec3 x2 = s2->pos;
     vec3 x1 = s1->pos;   
@@ -249,14 +264,20 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
     b1 = s0->pos    - x1; 
     b2 = x2         - x1;
 
+    b0e <<   b1.x      , b1.y     , b1.z; 
+    b2e <<   b2.x      , b2.y     , b2.z;
+
+    
+    DEBUG(3, "b0e " << b0e << std::endl);
+    DEBUG(3, "b2e is " << b2e << std::endl);
+    Eigen::Vector3f b0_proj = b2e * b0e.dot(b2e) / (pow(b2e.norm(),2));
+    DEBUG(3, "b0_proj is " << b0_proj << std::endl);
+    
     vec3 vc1xb2 = cross_product(vc1, b2);
-    Eigen::Matrix4f A;
-    Eigen::Vector4f b;
-    Eigen::Vector4f ps1;
-    ps1<< s1->pos.x, s1->pos.y, s1->pos.z , 0;
     for(int i=0; i <num_spheres+num_bubbles; i++)
     {
         bool skip=false;
+        bool check_both=true;
         for(int j: s0->neighboors){
             if(j==i)
             {
@@ -266,41 +287,129 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
         }
         if(skip) continue;
         sphere sc;  //candidate for s2
-        if(i>num_spheres) sc = bubbles[i-num_spheres];
-        else sc = spheres[i];
+        if(i>num_spheres){
+            DEBUG(2,"FOR BUBBLE "<<i-num_spheres <<"\n");
+            sc = bubbles[i-num_spheres];
+        }
+        else{
+            DEBUG(2,"FOR SPHERE "<<i <<"\n");
+            sc = spheres[i];
+        }
         double rs = sc.radius;
         vec3 bs = sc.pos - x1;
        
-        DEBUG(2,"FOR BUBBLE "<<i <<"\n");
         DEBUG(3, "sc is at " << sc.pos.x << " "<< sc.pos.y << " "<< sc.pos.z << std::endl);
         DEBUG(3, "s1 is at " << x1.x << " "<< x1.y << " "<< x1.z << std::endl);
         DEBUG(3, "s2 is at " << x2.x << " "<< x2.y << " "<< x2.z << std::endl);
         DEBUG(3, "vc1 is  " << vc1.x << " "<< vc1.y << " "<< vc1.z << std::endl);
-        A   <<   (bs-b2).x     , (bs-b2).y    ,(bs-b2).z     , (rs-r2)
-                , b2.x         , b2.y         , b2.z         , (r2-r1)
-                , bs.x         , bs.y         , bs.z         , (rs-r1)
-                , vc1xb2.x     , vc1xb2.y     , vc1xb2.z     , 0      ;
-        DEBUG(3,  "A: \n" << A <<std::endl);
-        b   << (pow(r2, 2) - pow(rs,2) -pow(b2.magnitude(), 2) +pow(bs.magnitude(), 2))/2.0
-            , (pow(b2.magnitude(), 2) + pow(r1, 2) - pow(r2,2))/2.0
-            , (pow(bs.magnitude(), 2) + pow(r1, 2) - pow(rs,2))/2.0
-            , 0 ;
-        DEBUG(3, "b: \n " <<b <<std::endl);
-        Eigen::Vector4f soln = A.colPivHouseholderQr().solve(b);
+     
+        /*-----------------------------------------------------------------------------
+         *  Here we have a mix of quadratic and linear equations
+         *  Our linear condition is:
+         *
+         *  mat3(B) * vec3(beta) = vec3(s) - vec3(r)*rf 
+         *  
+         *  The quadratic condition is 
+         *  
+         *  |vec3(beta)|**2 = (rf+r1)^2
+         *
+         *  We are solving for rf and then calculating x, y, z components of beta
+         *
+         *  The quadratic equation is of form ar^2 + br + c = 0 where
+         *
+         *  a = |inv(B)vec3(r)|**2 - 1
+         *  b = 2*inv(B)vec3(r).inv(B)vec3(s) - 2*r1
+         *  c = |inv(B)vec3(s)|**2 - r1**2
+         *
+         *  so
+         *            -b +/- sqrt(b^2-4ac)
+         *      rf = -----------------------
+         *                  2a
+         *-----------------------------------------------------------------------------*/
         
-        DEBUG(3,"soln before radius correction \n" << soln <<std::endl << "corresponding to " << ps1+soln << std::endl);
-	if(soln[3]==0)
+        B   <<    b2.x         , b2.y         , b2.z         
+                , bs.x         , bs.y         , bs.z         
+                , vc1xb2.x     , vc1xb2.y     , vc1xb2.z     ;
+
+        r   <<   r2-r1      , rs-r1     , 0;
+        s   <<   (pow(b2.magnitude(), 2) + pow(r1, 2) - pow(r2,2))/2.0
+            ,    (pow(bs.magnitude(), 2) + pow(r1, 2) - pow(rs,2))/2.0
+            ,    0 ;
+
+        DEBUG(4,"B is: " << B <<std::endl);
+        DEBUG(4,"r is: " << r <<std::endl);
+        DEBUG(4,"s is: " << s <<std::endl);
+        double a, b, c;     //Coefficients of the quadratic
+        a = (B.inverse()*r).squaredNorm() -1;
+        b = -2*(B.inverse()*r).dot(B.inverse()*s)-2*r1;
+        c = (B.inverse()*s).squaredNorm() - r1*r1;
+
+        double sol1, sol2, sol;  //Solutions of the quadratic
+        sol1 = (-b + sqrt(b*b-4*a*c))/(2*a);
+        sol2 = (-b - sqrt(b*b-4*a*c))/(2*a);
+
+        DEBUG(3,"Radii solutions: " << sol1 << " " << sol2 <<std::endl);
+        
+        if(sol1<0)
         {
-            soln[3] 
-                = pow(pow(bs.x-soln[0],2)+pow(bs.y-soln[1],2)+pow(bs.z-soln[2],2),0.5)-sc.radius;
+            sol=sol2;
         }
-        DEBUG(3,"soln \n" << soln <<std::endl << "corresponding to " << ps1+soln << std::endl);
-        if(soln[3] < min_radius && soln[3]>s0->radius)
-        //if(soln.segment(0,2).norm()<min_dist && soln[3]>s0->radius)
+        else if(sol2<0)
         {
-            min_dist =soln.segment(0,2).norm(); 
-            min_radius = soln[3];
-	    beta={soln[0], soln[1], soln[2]};
+            sol=sol1;
+        }
+        else if(sol1<0 && sol2<0)
+        {
+            continue;
+        }
+        else {
+            DEBUG(3,"Both radii are positive " <<std::endl);
+            sol=std::max(sol1, sol2);
+            if(sol <= radius_min && sol > s0->radius)
+            {
+                /*-----------------------------------------------------------------------------
+                *  Now that we have the radius, we find the beta x, y and z  coordinates
+                *  by plugging r into the linear system B*beta = vec3(s) - vec3(r)*sol
+                *-----------------------------------------------------------------------------*/
+                beta = B.colPivHouseholderQr().solve(s-r*sol);
+                DEBUG(3,"Beta solution: " << beta <<std::endl);
+                if((beta-b0_proj).dot(b0e-b0_proj)<=SMIDGE){
+                    DEBUG(3,"Rejected because of negative dot product: " << (beta-b0_proj).dot(b0e-b0_proj) <<std::endl);
+                }
+                else {
+                beta_min = beta;
+                radius_min = sol;
+
+
+                if(i>num_spheres)
+                {
+                    bubble = true;
+                    index = i-num_spheres;
+                }
+                else index =i;
+                }
+            }
+            sol=std::min(sol1, sol2);
+        }
+
+        //Check if  radii are possible solutions
+        if(sol <= radius_min && sol > s0->radius)
+        {
+            /*-----------------------------------------------------------------------------
+            *  Now that we have the radius, we find the beta x, y and z  coordinates
+            *  by plugging r into the linear system B*beta = vec3(s) - vec3(r)*sol
+            *-----------------------------------------------------------------------------*/
+            beta = B.colPivHouseholderQr().solve(s-r*sol);
+            DEBUG(3,"Beta solution: " << beta <<std::endl);
+            if((beta-b0_proj).dot(b0e-b0_proj)<=SMIDGE){
+                
+                DEBUG(3,"Rejected because of negative dot product: " << (beta-b0_proj).dot(b0e-b0_proj) <<std::endl);
+                continue;
+            }
+            beta_min = beta;
+            radius_min = sol;
+
+
             if(i>num_spheres)
             {
                 bubble = true;
@@ -309,107 +418,39 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
             else index =i;
         }
     }
-    if(index==-1)return bubbles[0];
+    if(index==-1)
+    {
+        DEBUG(2,"No contact: " <<std::endl);
+        return bubbles[0];
+    }
     sphere sc;
     if(bubble)sc = bubbles[index];
     else sc=spheres[index];
-    s0->radius = min_radius;
-    s0->pos.equals(s1->pos + beta);
+    s0->radius = radius_min;
+    vec3 bm;
+    bm.x = beta_min(0);
+    bm.y = beta_min(1);
+    bm.z = beta_min(2);
+    DEBUG(2,"bm: " << bm.x << " " << bm.y << " " << bm.z <<std::endl);
+    DEBUG(2,"s0.pos: " << s0->pos.x << " " << s0->pos.y << " " << s0->pos.z <<std::endl);
+    s0->pos.x = s1->pos.x + bm.x;
+    s0->pos.y = s1->pos.y + bm.y;
+    s0->pos.z = s1->pos.z + bm.z;
+    DEBUG(2,"s0.pos: " << s0->pos.x << " " << s0->pos.y << " " << s0->pos.z <<std::endl);
     if(bubble)
     {
+        DEBUG(2,"Contact with bubble: " << index <<std::endl);
         s0->neighboors.push_back(num_spheres+index);
         return bubbles[index];
     } 
     else 
     {
+        DEBUG(2,"Contact with sphere: " << index <<std::endl);
         s0->neighboors.push_back(index);
         return spheres[index];
     }
 }
 
-sphere stage4(bubble * s0, sphere * s1, sphere * s2, sphere * s3, int num_spheres, int num_bubbles)
-{
-    double min_radius;
-    int index = -1;
-    bool bubble = false;
-
-    vec3 vc1, b1, b2, b3;
-    vec3 beta;
-    double r1 = s1->radius;
-    double r2 = s2->radius;
-    double r3 = s3->radius;
-//    double * rs = s0->radius;
-
-    vec3 x1 = s1->pos;   
-    vec3 x2 = s2->pos;
-    vec3 x3 = s3->pos;   
-    
-    vec3 c1 = s1->pos+((s0->pos - s1->pos).normalize()).scalar_multiply(s1->radius);
-    vc1 = c1  - s1->pos; 
-    
-    b1 = s0->pos    - x1; 
-    b2 = x2         - x1;
-    b3 = x3         - x1;
-
-    vec3 vc1xb2 = cross_product(vc1, b2);
-    Eigen::Matrix4f A;
-    Eigen::Vector4f b;
-    for(int i=0; i <num_spheres+num_bubbles; i++)
-    {
-        bool skip=false;
-        for(int j: s0->neighboors){
-            if(j==i)
-            {
-                skip=true;
-                break;
-            }
-        }
-        if(skip) continue;
-        sphere sc;  //candidate for s2
-        if(i>num_spheres) sc = bubbles[i-num_spheres];
-        else sc = spheres[i];
-        double rs = sc.radius;
-        vec3 bs = sc.pos - x1;
-        A   << (b2-b3).x   , (b2-b3).y    , (b2-b3).z    , (r2-r3)
-            , b2.x         , b2.y         , b2.z         , (r2-r1)
-            , b3.x         , b3.y         , b3.z         , (r3-r1)
-            , bs.x         , bs.y         , bs.z         , (rs-r1);
-
-        b   << (pow(b2.magnitude(), 2) - pow(b3.magnitude(), 2) 
-                    + pow(rs, 2) - pow(r2,2))/2.0
-            , (pow(b2.magnitude(), 2) + pow(r1, 2) - pow(r2,2))/2.0
-            , (pow(b3.magnitude(), 2) + pow(r1, 2) - pow(rs,2))/2.0
-            , (pow(bs.magnitude(), 2) + pow(r1, 2) - pow(r3,2))/2.0;
-        Eigen::Vector4f soln = A.colPivHouseholderQr().solve(b);
-        if(soln[3] < min_radius && soln[3]>s0->radius)
-        {
-            min_radius = soln[3];
-	    beta={soln[0], soln[1], soln[2]};
-            if(i>num_spheres)
-            {
-                bubble = true;
-                index = i-num_spheres;
-            }
-            else index =i;
-        }
-    }
-    if(index==-1)return bubbles[0];
-    sphere sc;
-    if(bubble)sc = bubbles[index];
-    else sc=spheres[index];
-    s0->radius = min_radius;
-    s0->pos = s1->pos + beta;
-    if(bubble)
-    {
-        s0->neighboors.push_back(num_spheres+index);
-        return bubbles[index];
-    } 
-    else 
-    {
-        s0->neighboors.push_back(index);
-        return spheres[index];
-    }
-}
 /* 
  * ===  FUNCTION  ======================================================================
  *         Name:  read_sphere_file
@@ -442,7 +483,11 @@ int read_sphere_coords(std::string path){
     return count;
 }
 
-
+int check_oob(bubble *b)
+{
+    if(b->radius>0 && b->pos.x>0 && b->pos.y>0 && b->pos.z>0 && b->pos.x<10 & b->pos.y<10 && b->pos.z<10) return false;
+    return true;
+}
 int check_errors(bubble * b, int num_spheres, int num_bubbles)
 {
     
@@ -478,20 +523,26 @@ int sphere_cage_gen(int num_spheres, double r)
     {
         num_spheres++;
         spheres[num_spheres]=(sphere){r, (vec3){i*2*r, j*2*r, -r}};
+//        std::cout << spheres[num_spheres].radius << " " <<  spheres[num_spheres].pos.x << " " << spheres[num_spheres].pos.y << " " << spheres[num_spheres].pos.z << std::endl;
         num_spheres++;
-        spheres[num_spheres]=(sphere){r, (vec3){i*2*r, i*2*r, z_max+r}};
+        spheres[num_spheres]=(sphere){r, (vec3){i*2*r, j*2*r, z_max+r}};
+//        std::cout << spheres[num_spheres].radius << " " <<  spheres[num_spheres].pos.x << " " << spheres[num_spheres].pos.y << " " << spheres[num_spheres].pos.z << std::endl;
         
         num_spheres++;
         spheres[num_spheres]=(sphere){r, (vec3){i*2*r, -r, j*2*r}};
+//        std::cout << spheres[num_spheres].radius << " " <<  spheres[num_spheres].pos.x << " " << spheres[num_spheres].pos.y << " " << spheres[num_spheres].pos.z << std::endl;
         
         num_spheres++;
         spheres[num_spheres]=(sphere){r, (vec3){i*2*r, y_max+r, j*2*r}};
+//        std::cout << spheres[num_spheres].radius << " " <<  spheres[num_spheres].pos.x << " " << spheres[num_spheres].pos.y << " " << spheres[num_spheres].pos.z << std::endl;
         
         num_spheres++;
         spheres[num_spheres]=(sphere){r, (vec3){-r, i*2*r, j*2*r}};
+//        std::cout << spheres[num_spheres].radius << " " <<  spheres[num_spheres].pos.x << " " << spheres[num_spheres].pos.y << " " << spheres[num_spheres].pos.z << std::endl;
         
         num_spheres++;
         spheres[num_spheres]=(sphere){r, (vec3){x_max+r, i*2*r, j*2*r}};
+//        std::cout << spheres[num_spheres].radius << " " <<  spheres[num_spheres].pos.x << " " << spheres[num_spheres].pos.y << " " << spheres[num_spheres].pos.z << std::endl;
     }
     }
     return num_spheres;
@@ -507,25 +558,27 @@ int main(int argc, char * argv[])
 {
     bool debug = true;
     std::cout << std::fixed;
-    if(argc!=4)
+    if(argc<3)
     {
-        //std::cout << 
-        //    "Usage: ./bubble-fill [input-sphere-file] [output-bubble-file]" <<
-        //    std::endl;
         argv[1]="spheres";
 	argv[2]="bubbles";
+	argv[3]="0";
+    }
+    else if(argc<4)
+    {
 	argv[3]="0";
     }
     std::string sphere_file_path = argv[1];
     std::string bubble_file_path = argv[2];
     debug_level = atoi(argv[3]);
     int num_spheres = read_sphere_coords(sphere_file_path);
-    //num_spheres =sphere_cage_gen(num_spheres, 0.1);
-
-    
+    //num_spheres =sphere_cage_gen(num_spheres, 0.25);
+   srand (123); 
+    bubbles[0].radius=-20;
     //Initialize the null sphere
-    for(int i=1; i<20; i++)
+    for(int i=1; i<3; i++)
     { 
+        bool skip = false;
         bubble b;
         double r, x, y, z;
         while(true)
@@ -545,27 +598,42 @@ int main(int argc, char * argv[])
          //if(debug) std::cout<< "Pre : "<< b.radius << " " << 
          //         b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
         sphere c1 = stage1(&b, num_spheres, i);
+        if(c1.radius==-20 || check_oob(&b)) skip=true;
         DEBUG(1,"S1: " << b.radius << " " << 
                   b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
-        sphere c2 = stage2(&b, &c1, num_spheres, i);
-          if(b.radius<0 || b.pos.x<0 || b.pos.y<0 || b.pos.z<0 || b.pos.x>10 & b.pos.y>10 || b.pos.z>10){i--; continue;}
-        DEBUG(1,"S2: " << b.radius << " " << 
-                  b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
-        sphere c3 = stage3(&b, &c1, &c2, num_spheres, i);
+        if(!skip){
+            sphere c2 = stage2(&b, &c1, num_spheres, i);
+            if(c2.radius==-20 || check_oob(&b)) skip=true;
+            DEBUG(1,"S2: " << b.radius << " " << 
+                    b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
+            if(!skip)
+            {
+                sphere c3 = stage3(&b, &c1, &c2, num_spheres, i);
+                if(c3.radius==-20 || check_oob(&b)) skip=true;
+                DEBUG(1,"S3: " << b.radius << " " << 
+                        b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
+                if(!skip) 
+                {
+                    sphere c4 = stage4(&b, &c1, &c2, &c3, num_spheres, i);
+                    DEBUG(1,"S4: " << b.radius << " " << 
+                            b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
+                }
+            }
+        }
 
-        DEBUG(1,"S3: " << b.radius << " " << 
-                  b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
-        sphere c4 = stage4(&b, &c1, &c2, &c3, num_spheres, i);
+        //sphere c4 = stage4(&b, &c1, &c2, &c3, num_spheres, i);
 
-        DEBUG(1,"S4: " << b.radius << " " << 
-                  b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
-        /*if(check_intersect(b.radius, b.pos, num_spheres, i, true, true, true)!=-1)
-        {
-            i--;
-            continue;
-        }*/
+        //DEBUG(1,"S4: " << b.radius << " " << 
+        //          b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
           if(b.radius>0 && b.pos.x>0 && b.pos.y>0 && b.pos.z>0 && b.pos.x<10 & b.pos.y<10 && b.pos.z<10)
           {
+            if(check_intersect(b.radius, b.pos, num_spheres, i, true, true, true)!=-1)
+            {
+            DEBUG(1, "ERROR::INTERSECT: " << check_intersect(b.radius, b.pos, num_spheres, i, true, true, true) <<std::endl;);
+                break;
+            i--;
+            continue;
+            }
             std::cout << b.radius << " " <<  b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
             for(int j: b.neighboors){
                 if(j-num_spheres>0)
