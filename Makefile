@@ -11,8 +11,8 @@ TARGET := bin/bubble-fill
 SRCEXT := cpp
 SOURCES := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
-CFLAGS := -g -std=c++11 -Wall -O3 -fopenmp
-LIB := -pthread -L lib -fopenmp 
+CFLAGS := -g -std=c++11 -Wall -O3 
+LIB := -pthread -L lib 
 INC := -I include
 
 $(TARGET): $(OBJECTS)
