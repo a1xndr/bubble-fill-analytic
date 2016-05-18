@@ -22,6 +22,7 @@
 
 #include <stdlib.h>
 #include <iostream>
+#include <iomanip>
 #include <fstream>
 #include <sstream> 
 #include <vector> 
@@ -29,6 +30,7 @@
 #include <cmath>
 #include <Eigen/LU>
 #include <Eigen/QR>
+#include <Eigen/Dense>
 #include "bubble.hpp"
 #include "sphere.hpp"
 #include "sphere_math.hpp"
@@ -370,7 +372,7 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
                 *-----------------------------------------------------------------------------*/
                 beta = B.colPivHouseholderQr().solve(s-r*sol);
                 DEBUG(3,"Beta solution: " << beta <<std::endl);
-                if((beta-b0_proj).dot(b0e-b0_proj)<=SMIDGE){
+                if((beta-b0_proj).dot(b0e-b0_proj)<=0){
                     DEBUG(3,"Rejected because of negative dot product: " << (beta-b0_proj).dot(b0e-b0_proj) <<std::endl);
                 }
                 else {
@@ -398,7 +400,7 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
             *-----------------------------------------------------------------------------*/
             beta = B.colPivHouseholderQr().solve(s-r*sol);
             DEBUG(3,"Beta solution: " << beta <<std::endl);
-            if((beta-b0_proj).dot(b0e-b0_proj)<=SMIDGE){
+            if((beta-b0_proj).dot(b0e-b0_proj)<=0){
                 
                 DEBUG(3,"Rejected because of negative dot product: " << (beta-b0_proj).dot(b0e-b0_proj) <<std::endl);
                 continue;
@@ -450,38 +452,6 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
 
 /* 
  * ===  FUNCTION  ======================================================================
- *         Name:  read_sphere_file
- *  Description:  Reads sphere coordinates from file
- * =====================================================================================
- * 
- */
-int read_sphere_coords(std::string path){
-    std::ifstream file(path);
-    int count = 0;
-//    double pore_volume = x_max*y_max+z_max - sphere_volume;
-    if(file.is_open())
-    {
-        std::string line;
-        while(getline(file, line))
-        {
-            std::istringstream iss(line);
-            double d;
-            double params[5];
-            int paramcount=0;;
-            while (iss>>d){
-                params[paramcount]=d;
-                paramcount++;
-            }
-            spheres[count]=(sphere){params[1], (vec3){params[2],params[3],params[4]}};
-            sphere_volume+=(4.0/3.0)*PI*pow(spheres[count].radius,3);
-            count++;
-        }
-    }
-    return count;
-}
-
-/* 
- * ===  FUNCTION  ======================================================================
  *         Name:  stage4
  *  Description:  stage 4 is very similar to stage 3 except we grow to a 4th and final 
  *  point of contact. All that changes is one part of the linear system
@@ -507,7 +477,7 @@ sphere stage4(bubble * s0,
     vec3 vc1, b1, b2, b3;
 
     Eigen::Vector3f beta_min, beta;
-    Eigen::Vector3f b0e, b2e, b0_proj;
+    Eigen::Vector3f b0e, b2e, b3e, norm;
     Eigen::Vector3f r, s;
     Eigen::Matrix3f B;
 
@@ -520,12 +490,14 @@ sphere stage4(bubble * s0,
 
     b0e <<   b1.x      , b1.y     , b1.z; 
     b2e <<   b2.x      , b2.y     , b2.z;
-    b0_proj = b2e * b0e.dot(b2e) / (pow(b2e.norm(),2));
+    b3e <<   b3.x      , b3.y     , b3.z;
+    norm = b2e.cross(b3e);
+    if(norm.dot(b0e)<0)norm=-norm;
 
     
     DEBUG(3, "b0e " << b0e << std::endl);
     DEBUG(3, "b2e is " << b2e << std::endl);
-    DEBUG(3, "b0_proj is " << b0_proj << std::endl);
+    DEBUG(3, "norm is " << norm << std::endl);
     
     for(int i=0; i <num_spheres+num_bubbles; i++)
     {
@@ -625,6 +597,10 @@ sphere stage4(bubble * s0,
                 *-----------------------------------------------------------------------------*/
                 beta = B.colPivHouseholderQr().solve(s-r*sol);
                 DEBUG(3,"Beta solution: " << beta <<std::endl);
+                if(beta.dot(norm)<0){
+                    DEBUG(3,"Rejected because of negative dot product: " <<std::endl);
+                }
+                else{
                 beta_min = beta;
                 radius_min = sol;
 
@@ -634,6 +610,7 @@ sphere stage4(bubble * s0,
                     index = i-num_spheres;
                 }
                 else index = i;
+                }
             }
             sol=std::min(sol1, sol2);
         }
@@ -647,6 +624,10 @@ sphere stage4(bubble * s0,
             *-----------------------------------------------------------------------------*/
             beta = B.colPivHouseholderQr().solve(s-r*sol);
             DEBUG(3,"Beta solution: " << beta <<std::endl);
+            if(beta.dot(norm)<0){
+                DEBUG(3,"Rejected because of negative dot product: " <<std::endl);
+            }
+            else{
             beta_min = beta;
             radius_min = sol;
 
@@ -656,6 +637,7 @@ sphere stage4(bubble * s0,
                 index = i-num_spheres;
             }
             else index = i;
+            }
         }
     }
     if(index==-1)
@@ -690,6 +672,91 @@ sphere stage4(bubble * s0,
         return spheres[index];
     }
 }
+
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  same_side
+ *  Description:  Check if a point is on the same side of a plane as a vertex
+ * =====================================================================================
+ */
+bool same_side( Eigen::Vector3d v1,     // Plane Vertex 1
+                Eigen::Vector3d v2,     // Plane Vertex 2
+                Eigen::Vector3d v3,     // Plane Vertex 3
+                Eigen::Vector3d v4,     // Vertex to compare against
+                Eigen::Vector3d p)      // Point to compare against
+{
+    Eigen::Vector3d normal = (v2-v1).cross(v3-v1);
+    if(normal.dot(v4-v1)*normal.dot(p-v1)<0)return false;
+    return true;
+}
+
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  check_stuck
+ *  Description:  Check if a sphere is stuck between four contact spheres.
+ * =====================================================================================
+ */
+int check_unstuck( bubble * s0, 
+                    sphere * s1, 
+                    sphere * s2, 
+                    sphere * s3,
+                    sphere * s4)
+{
+    DEBUG(2,"Checking if bubble is stuck...");
+    Eigen::Vector3d p, v1, v2, v3, v4;
+    p  << s0->pos.x , s0->pos.y , s0->pos.z; 
+    v1 << s1->pos.x , s1->pos.y , s1->pos.z; 
+    v2 << s2->pos.x , s2->pos.y , s2->pos.z; 
+    v3 << s3->pos.x , s3->pos.y , s3->pos.z; 
+    v4 << s4->pos.x , s4->pos.y , s4->pos.z;
+    bool face[4] = {same_side(v2, v3, v4, v1, p),
+                    same_side(v3, v4, v1, v2, p),
+                    same_side(v4, v1, v2, v3, p),
+                    same_side(v1, v2, v3, v4, p)};
+    for(int i=0; i<4; i++) 
+    {
+        if(!face[i])
+        {
+            DEBUG(2," Not Stuck " << i+1 << std::endl;);
+            return i+1;
+        }
+    }
+    DEBUG(2," Stuck" << std::endl;);
+    return 0;
+}
+/* 
+ * ===  FUNCTION  ======================================================================
+ *         Name:  read_sphere_file
+ *  Description:  Reads sphere coordinates from file
+ * =====================================================================================
+ * 
+ */
+int read_sphere_coords(std::string path){
+    std::ifstream file(path);
+    int count = 0;
+//    double pore_volume = x_max*y_max+z_max - sphere_volume;
+    if(file.is_open())
+    {
+        std::string line;
+        while(getline(file, line))
+        {
+            std::istringstream iss(line);
+            double d;
+            double params[5];
+            int paramcount=0;;
+            while (iss>>d){
+                params[paramcount]=d;
+                paramcount++;
+            }
+            spheres[count]=(sphere){params[1], (vec3){params[2],params[3],params[4]}};
+            sphere_volume+=(4.0/3.0)*PI*pow(spheres[count].radius,3);
+            count++;
+        }
+    }
+    return count;
+}
+
 int check_oob(bubble *b)
 {
     if(b->radius>0 && b->pos.x>0 && b->pos.y>0 && b->pos.z>0 && b->pos.x<10 & b->pos.y<10 && b->pos.z<10) return false;
@@ -770,20 +837,27 @@ int main(int argc, char * argv[])
         argv[1]="spheres";
 	argv[2]="bubbles";
 	argv[3]="0";
+	argv[4]="1";
     }
     else if(argc<4)
     {
 	argv[3]="0";
+	argv[4]="1";
+    }
+    else if(argc<5)
+    {
+	argv[4]="1";
     }
     std::string sphere_file_path = argv[1];
     std::string bubble_file_path = argv[2];
     debug_level = atoi(argv[3]);
     int num_spheres = read_sphere_coords(sphere_file_path);
+    bool show_neigboors = atoi(argv[4]);
     //num_spheres =sphere_cage_gen(num_spheres, 0.25);
-   srand (123); 
+    srand (123); 
     bubbles[0].radius=-20;
     //Initialize the null sphere
-    for(int i=1; i<2; i++)
+    for(int i=1; i<10000000; i++)
     { 
         bool skip = false;
         bubble b;
@@ -804,48 +878,77 @@ int main(int argc, char * argv[])
         b.pos.z = z;
          //if(debug) std::cout<< "Pre : "<< b.radius << " " << 
          //         b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
-        sphere c1 = stage1(&b, num_spheres, i);
+        sphere c1, c2, c3, c4;
+        int contacts=0;
+        c1 = stage1(&b, num_spheres, i);
+        contacts++;
         if(c1.radius==-20 || check_oob(&b)) skip=true;
         DEBUG(1,"S1: " << b.radius << " " << 
                   b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
         if(!skip){
-            sphere c2 = stage2(&b, &c1, num_spheres, i);
+            c2 = stage2(&b, &c1, num_spheres, i);
+            contacts++;
             if(c2.radius==-20 || check_oob(&b)) skip=true;
             DEBUG(1,"S2: " << b.radius << " " << 
                     b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
             if(!skip)
             {
-                sphere c3 = stage3(&b, &c1, &c2, num_spheres, i);
+                c3 = stage3(&b, &c1, &c2, num_spheres, i);
+                contacts++;
                 if(c3.radius==-20 || check_oob(&b)) skip=true;
                 DEBUG(1,"S3: " << b.radius << " " << 
                         b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
-                /*  if(!skip) 
+                  if(!skip) 
                 {
-                    sphere c4 = stage4(&b, &c1, &c2, &c3, num_spheres, i);
+                    c4 = stage4(&b, &c1, &c2, &c3, num_spheres, i);
+                    contacts++;
                     DEBUG(1,"S4: " << b.radius << " " << 
                             b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
-                }*/
+                }
             }
         }
+        /*  
+        bool stuck = false;
+        while(contacts == 4 && !stuck)
+        {
+            int redundant = check_unstuck(&b, &c1, &c2, &c3, &c4);
+            if( !redundant ) stuck=true;
+            else 
+            {
 
-        //sphere c4 = stage4(&b, &c1, &c2, &c3, num_spheres, i);
+                switch(redundant) {
+                    case 1:
+                        c1 = stage4(&b, &c2, &c3, &c4, num_spheres, i);
+                    case 2:
+                        c2 = stage4(&b, &c1, &c3, &c4, num_spheres, i);
+                    case 3:
+                        c3 = stage4(&b, &c1, &c2, &c4, num_spheres, i);
+                    case 4:
+                        c4 = stage4(&b, &c1, &c2, &c3, num_spheres, i);
+                    default:
+                        stuck = true;
+                }
+                DEBUG(1,"Repeated S4 " << b.radius << " " << 
+                        b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
+            }   
+        }*/
 
-        //DEBUG(1,"S4: " << b.radius << " " << 
-        //          b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
           if(b.radius>0 && b.pos.x>0 && b.pos.y>0 && b.pos.z>0 && b.pos.x<10 & b.pos.y<10 && b.pos.z<10)
           {
-            if(check_intersect(b.radius, b.pos, num_spheres, i, true, true, true)!=-1)
+              if(check_intersect(b.radius, b.pos, num_spheres, i, true, true, true)!=-1)
             {
             DEBUG(1, "ERROR::INTERSECT: " << check_intersect(b.radius, b.pos, num_spheres, i, true, true, true) <<std::endl;);
-                break;
+                continue;
             i--;
             continue;
             }
-            std::cout << b.radius << " " <<  b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl;
-            for(int j: b.neighboors){
-                if(j-num_spheres>0)
-                {
-                    std::cout<< j-num_spheres << " " ;
+            std::cout << std::setprecision (17) << b.radius << " " <<  b.pos.x << " " << b.pos.y << " " << b.pos.z << std::setprecision(6)<< std::endl;
+            if(show_neigboors){
+                for(int j: b.neighboors){
+                    if(j-num_spheres>0)
+                    {
+                        std::cout<< j-num_spheres << " " ;
+                    }
                 }
             }
             std::cout<< std::endl ;
