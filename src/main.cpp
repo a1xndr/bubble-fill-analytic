@@ -364,7 +364,7 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
         else {
             DEBUG(3,"Both radii are positive " <<std::endl);
             sol=std::max(sol1, sol2);
-            if(sol <= radius_min && sol > s0->radius)
+            if(sol <= radius_min && sol >= s0->radius)
             {
                 /*-----------------------------------------------------------------------------
                 *  Now that we have the radius, we find the beta x, y and z  coordinates
@@ -392,7 +392,7 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
         }
 
         //Check if  radii are possible solutions
-        if(sol <= radius_min && sol > s0->radius)
+        if(sol <= radius_min && sol >= s0->radius)
         {
             /*-----------------------------------------------------------------------------
             *  Now that we have the radius, we find the beta x, y and z  coordinates
@@ -589,7 +589,7 @@ sphere stage4(bubble * s0,
         else {
             DEBUG(3,"Both radii are positive " <<std::endl);
             sol=std::max(sol1, sol2);
-            if(sol <= radius_min && sol > s0->radius)
+            if(sol <= radius_min && sol >= s0->radius)
             {
                 /*-----------------------------------------------------------------------------
                 *  Now that we have the radius, we find the beta x, y and z  coordinates
@@ -616,7 +616,7 @@ sphere stage4(bubble * s0,
         }
 
         //Check if  radii are possible solutions
-        if(sol <= radius_min && sol > s0->radius)
+        if(sol <= radius_min && sol >= s0->radius )
         {
             /*-----------------------------------------------------------------------------
             *  Now that we have the radius, we find the beta x, y and z  coordinates
@@ -703,17 +703,41 @@ int check_unstuck( bubble * s0,
                     sphere * s3,
                     sphere * s4)
 {
-    DEBUG(2,"Checking if bubble is stuck...");
+    DEBUG(2,"Checking if bubble is stuck. \n Neighboors: \n");
     Eigen::Vector3d p, v1, v2, v3, v4;
+    Eigen::Vector3d c1, c2, c3, c4;
     p  << s0->pos.x , s0->pos.y , s0->pos.z; 
     v1 << s1->pos.x , s1->pos.y , s1->pos.z; 
     v2 << s2->pos.x , s2->pos.y , s2->pos.z; 
     v3 << s3->pos.x , s3->pos.y , s3->pos.z; 
     v4 << s4->pos.x , s4->pos.y , s4->pos.z;
-    bool face[4] = {same_side(v2, v3, v4, v1, p),
-                    same_side(v3, v4, v1, v2, p),
-                    same_side(v4, v1, v2, v3, p),
-                    same_side(v1, v2, v3, v4, p)};
+    
+    c1 = p+(v1-p).normalized()*s0->radius;
+    c2 = p+(v2-p).normalized()*s0->radius;
+    c3 = p+(v3-p).normalized()*s0->radius;
+    c4 = p+(v4-p).normalized()*s0->radius;
+    
+    DEBUG(2, s1->radius << " " << v1 << std::endl);
+    DEBUG(2, s2->radius << " " << v2 << std::endl);
+    DEBUG(2, s3->radius << " " << v3 << std::endl);
+    DEBUG(2, s4->radius << " " << v4 << std::endl);
+    DEBUG(2, "Contacts are: "<< std::endl);
+    
+    DEBUG(2,  c1 << std::endl);
+    DEBUG(2,  c2 << std::endl);
+    DEBUG(2,  c3 << std::endl);
+    DEBUG(2,  c4 << std::endl);
+
+    bool face[4] = {same_side(c2, c3, c4, c1, p),
+                    same_side(c3, c4, c1, c2, p),
+                    same_side(c4, c1, c2, c3, p),
+                    same_side(c1, c2, c3, c4, p)};
+    DEBUG(2,"Checked if sphere is trapped:" 
+            << face[0] << " "
+            << face[1] << " "
+            << face[2] << " "
+            << face[3] << " "
+            );
     for(int i=0; i<4; i++) 
     {
         if(!face[i])
@@ -822,6 +846,28 @@ int sphere_cage_gen(int num_spheres, double r)
     return num_spheres;
 }
 
+void register_contacts(bubble *b, int i, int k)
+{ 
+    for(int j=i-1; j >=0; j--)
+    {
+    	if(fabs(b->pos.x-spheres[j].pos.x) > b->radius + spheres[j].radius)continue;
+    	if(fabs(b->pos.y-spheres[j].pos.y) > b->radius + spheres[j].radius)continue;
+    	if(fabs(b->pos.z-spheres[j].pos.z) > b->radius + spheres[j].radius)continue;
+    	//Square of distance between two centers comparison against square of radius.
+    	if( distance(b->pos,spheres[j].pos)
+	    < spheres[j].radius + b->radius + SMIDGE)b->neighboors.push_back(j);
+    }
+    for(int j=k-1; j >=0; j--)
+    {
+    	if(fabs(b->pos.x-bubbles[j].pos.x) > b->radius + bubbles[j].radius)continue;
+    	if(fabs(b->pos.y-bubbles[j].pos.y) > b->radius + bubbles[j].radius)continue;
+    	if(fabs(b->pos.z-bubbles[j].pos.z) > b->radius + bubbles[j].radius)continue;
+    	//Square of distance between two centers comparison against square of radius.
+    	if( distance(b->pos,bubbles[j].pos)
+	    < bubbles[j].radius + b->radius + SMIDGE)b->neighboors.push_back(i+k);
+    }
+}
+
 /* 
  * ===  FUNCTION  ======================================================================
  *         Name:  main
@@ -853,7 +899,7 @@ int main(int argc, char * argv[])
     debug_level = atoi(argv[3]);
     int num_spheres = read_sphere_coords(sphere_file_path);
     bool show_neigboors = atoi(argv[4]);
-    //num_spheres =sphere_cage_gen(num_spheres, 0.25);
+    num_spheres =sphere_cage_gen(num_spheres, 0.25);
     srand (123); 
     bubbles[0].radius=-20;
     //Initialize the null sphere
@@ -904,18 +950,18 @@ int main(int argc, char * argv[])
                     contacts++;
                     DEBUG(1,"S4: " << b.radius << " " << 
                             b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
+                if(c3.radius==-20 || check_oob(&b)) skip=true;
                 }
             }
         }
-        /*  
+         
         bool stuck = false;
-        while(contacts == 4 && !stuck)
+        while(contacts == 4 && !stuck && !skip)
         {
             int redundant = check_unstuck(&b, &c1, &c2, &c3, &c4);
             if( !redundant ) stuck=true;
             else 
             {
-
                 switch(redundant) {
                     case 1:
                         c1 = stage4(&b, &c2, &c3, &c4, num_spheres, i);
@@ -931,18 +977,18 @@ int main(int argc, char * argv[])
                 DEBUG(1,"Repeated S4 " << b.radius << " " << 
                         b.pos.x << " " << b.pos.y << " " << b.pos.z << std::endl);
             }   
-        }*/
+        }
+        register_contacts(&b, num_spheres, i);
 
           if(b.radius>0 && b.pos.x>0 && b.pos.y>0 && b.pos.z>0 && b.pos.x<10 & b.pos.y<10 && b.pos.z<10)
           {
               if(check_intersect(b.radius, b.pos, num_spheres, i, true, true, true)!=-1)
             {
             DEBUG(1, "ERROR::INTERSECT: " << check_intersect(b.radius, b.pos, num_spheres, i, true, true, true) <<std::endl;);
-                continue;
             i--;
-            continue;
+                continue;
             }
-            std::cout << std::setprecision (17) << b.radius << " " <<  b.pos.x << " " << b.pos.y << " " << b.pos.z << std::setprecision(6)<< std::endl;
+            std::cout << std::setprecision (17) << " " << b.radius << " " <<  b.pos.x << " " << b.pos.y << " " << b.pos.z << std::setprecision(6)<< std::endl;
             if(show_neigboors){
                 for(int j: b.neighboors){
                     if(j-num_spheres>0)
