@@ -878,7 +878,7 @@ int main(int argc, char * argv[])
 {
     bool debug = true;
     std::cout << std::fixed;
-    if(argc<3)
+    if(argc<2)
     {
         argv[1]="spheres";
 	argv[2]="bubbles";
@@ -895,7 +895,7 @@ int main(int argc, char * argv[])
 	argv[4]="1";
     }
     std::string sphere_file_path = argv[1];
-    std::string bubble_file_path = argv[2];
+    std::string bubble_file_path = sphere_file_path + "-bubbles";
     debug_level = atoi(argv[3]);
     int num_spheres = read_sphere_coords(sphere_file_path);
     bool show_neigboors = atoi(argv[4]);
