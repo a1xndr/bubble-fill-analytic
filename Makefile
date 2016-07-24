@@ -11,13 +11,13 @@ TARGET := bin/bubble-fill
 SRCEXT := cpp
 SOURCES := $(shell find $(SRCDIR) -type f -name *.$(SRCEXT))
 OBJECTS := $(patsubst $(SRCDIR)/%,$(BUILDDIR)/%,$(SOURCES:.$(SRCEXT)=.o))
-CFLAGS := -g -std=c++11 -Wall -O3 -fopenmp
+CFLAGS := -g -std=c++11 -Wall -O3 -fopenmp -pg
 LIB := -pthread -L lib -fopenmp 
-INC := -I include
+INC := -I include -I $(SCC_EIGEN_INCLUDE)/eigen3
 
 $(TARGET): $(OBJECTS)
 	echo " Linking..."
-	echo " $(CC) $^ -o $(TARGET) $(LIB)"; $(CC) $^ -o $(TARGET) $(LIB)
+	echo " $(CC) -pg $^  -o $(TARGET) $(LIB)"; $(CC) -pg $^ -o $(TARGET) $(LIB)
 
 $(BUILDDIR)/%.o: $(SRCDIR)/%.$(SRCEXT)
 	mkdir -p $(BUILDDIR)
