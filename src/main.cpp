@@ -896,6 +896,7 @@ int main(int argc, char * argv[])
     }
     std::string sphere_file_path = argv[1];
     std::string bubble_file_path = sphere_file_path + "-bubbles";
+    std::ofstream out(bubble_file_path)
     debug_level = atoi(argv[3]);
     int num_spheres = read_sphere_coords(sphere_file_path);
     bool show_neigboors = atoi(argv[4]);
@@ -988,12 +989,12 @@ int main(int argc, char * argv[])
             i--;
                 continue;
             }
-            std::cout << std::setprecision (17) << " " << b.radius << " " <<  b.pos.x << " " << b.pos.y << " " << b.pos.z << std::setprecision(6)<< std::endl;
+            out << std::setprecision (17) << " " << b.radius << " " <<  b.pos.x << " " << b.pos.y << " " << b.pos.z << std::setprecision(6)<< std::endl;
             if(show_neigboors){
                 for(int j: b.neighboors){
                     if(j-num_spheres>0)
                     {
-                        std::cout<< j-num_spheres << " " ;
+                        out<< j-num_spheres << " " ;
                     }
                 }
             }
