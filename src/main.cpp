@@ -42,7 +42,7 @@ const int y_max=10;
 const int z_max=10;
 double sphere_volume=0;
 
-int debug_level = 3;
+int debug_level = 1;
 
 sphere spheres[spheres_max];
 bubble bubbles[bubbles_max];
@@ -286,12 +286,13 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
         }
         if(skip) continue;
         sphere sc;  //candidate for s2
+        DEBUG(3,"CURRENT WINNER "<<index <<"\n");
         if(i>num_spheres){
-            DEBUG(2,"FOR BUBBLE "<<i-num_spheres <<"\n");
+            DEBUG(3,"FOR BUBBLE "<<i-num_spheres <<"\n");
             sc = bubbles[i-num_spheres];
         }
         else{
-            DEBUG(2,"FOR SPHERE "<<i <<"\n");
+            DEBUG(3,"FOR SPHERE "<<i <<"\n");
             sc = spheres[i];
         }
         double rs = sc.radius;
@@ -405,6 +406,9 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
                 DEBUG(3,"Rejected because of negative dot product: " << (beta-b0_proj).dot(b0e-b0_proj) <<std::endl);
                 continue;
             }
+            if((beta_min).norm()-sol-s1->radius >= SMIDGE    || 
+               (beta_min-b2e).norm()-sol-s2->radius >= SMIDGE)
+                continue;
             beta_min = beta;
             radius_min = sol;
 
@@ -452,7 +456,7 @@ sphere stage3(bubble * s0, sphere * s1, sphere * s2, int num_spheres, int num_bu
 
 /* 
  * ===  FUNCTION  ======================================================================
- *         Name:  stage4
+ *         Name:  stage3
  *  Description:  stage 4 is very similar to stage 3 except we grow to a 4th and final 
  *  point of contact. All that changes is one part of the linear system
  * =====================================================================================
@@ -512,11 +516,11 @@ sphere stage4(bubble * s0,
         if(skip) continue;
         sphere sc;  //candidate for s2
         if(i>num_spheres){
-            DEBUG(2,"FOR BUBBLE "<<i-num_spheres <<"\n");
+            DEBUG(3,"FOR BUBBLE "<<i-num_spheres <<"\n");
             sc = bubbles[i-num_spheres];
         }
         else{
-            DEBUG(2,"FOR SPHERE "<<i <<"\n");
+            DEBUG(3,"FOR SPHERE "<<i <<"\n");
             sc = spheres[i];
         }
         double rs = sc.radius;
@@ -846,6 +850,22 @@ int sphere_cage_gen(int num_spheres, double r)
     return num_spheres;
 }
 
+int sphere_cage_gen2(int num_spheres, double r)
+{
+    num_spheres++;
+    spheres[num_spheres]=(sphere){10000, (vec3){x_max+10000,y_max/2,z_max/2}};
+    num_spheres++;
+    spheres[num_spheres]=(sphere){10000, (vec3){x_max/2,y_max+10000,z_max/2}};
+    num_spheres++;
+    spheres[num_spheres]=(sphere){10000, (vec3){x_max/2,y_max/2,z_max+10000}};
+    num_spheres++;
+    spheres[num_spheres]=(sphere){10000, (vec3){-10000,y_max/2,z_max/2}};
+    num_spheres++;
+    spheres[num_spheres]=(sphere){10000, (vec3){x_max/2,-10000,z_max/2}};
+    num_spheres++;
+    spheres[num_spheres]=(sphere){10000, (vec3){x_max/2,y_max/2,-10000}};
+    return num_spheres;
+}
 void register_contacts(bubble *b, int i, int k)
 { 
     for(int j=i-1; j >=0; j--)
@@ -896,15 +916,15 @@ int main(int argc, char * argv[])
     }
     std::string sphere_file_path = argv[1];
     std::string bubble_file_path = sphere_file_path + "-bubbles";
-    std::ofstream out(bubble_file_path)
+    std::ofstream out(bubble_file_path);
     debug_level = atoi(argv[3]);
     int num_spheres = read_sphere_coords(sphere_file_path);
     bool show_neigboors = atoi(argv[4]);
-    num_spheres =sphere_cage_gen(num_spheres, 0.25);
+    num_spheres =sphere_cage_gen2(num_spheres, 0.25);
     srand (123); 
     bubbles[0].radius=-20;
     //Initialize the null sphere
-    for(int i=1; i<10000000; i++)
+    for(int i=1; i<2; i++)
     { 
         bool skip = false;
         bubble b;
@@ -915,6 +935,12 @@ int main(int argc, char * argv[])
             x = rand_range(0.001,9.999);
             y = rand_range(0.001,9.999);
             z = rand_range(0.001,9.999);
+
+            r = 0;
+            x = 5;
+            y = 5;
+            z = 5;
+            
             if(check_intersect(r, (vec3){x, y, z}, num_spheres, i, true, true, true)
                     ==-1) break;
         }
@@ -998,7 +1024,7 @@ int main(int argc, char * argv[])
                     }
                 }
             }
-            std::cout<< std::endl ;
+            out<< std::endl ;
             bubbles[i]=b;
           }
           else {
